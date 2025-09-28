@@ -82,12 +82,13 @@ module Paperclip
         parameters = parameters.flatten.compact.join(" ").strip.squeeze(" ")
 
         source_prefix = 'apng:' if identified_as_apng?
+        dst_prefix = 'apng:' if identified_as_apng? && animated?
         frame = "[#{@frame_index}]" unless animated?
 
         convert(
           parameters,
           source: "#{source_prefix}#{File.expand_path(src.path)}#{frame}",
-          dest: File.expand_path((temp_dst || dst).path)
+          dest: "#{dst_prefix}#{File.expand_path((temp_dst || dst).path)}"
         )
 
         if temp_dst
@@ -133,7 +134,7 @@ module Paperclip
     # Return true if ImageMagick's +identify+ returns an animated format
     def identified_as_animated?
       if @identified_as_animated.nil?
-        @identified_as_animated = ANIMATED_FORMATS.include? identified_as
+        @identified_as_animated = identified_as_apng? || identified_as_multiframe?
       end
       @identified_as_animated
     rescue Terrapin::ExitStatusError => e
@@ -148,6 +149,14 @@ module Paperclip
         @identified_as_apng &&= identify("-format %m apng::file", file: @file.path).to_s.downcase.strip.match?(/\A(apng){2,}/)
       end
       @identified_as_apng
+    end
+
+    def identified_as_multiframe?
+      if @identified_as_multiframe.nil?
+        @identified_as_multiframe = MULTI_FRAME_FORMATS.include?(File.extname(@file.path)) || ANIMATED_FORMATS.include?(identified_as)
+        @identified_as_multiframe &&= identify('-format "%n" :file', file: @file.path).to_i > 1
+      end
+      @identified_as_multiframe
     end
 
     def identified_as
